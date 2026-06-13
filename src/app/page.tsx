@@ -1,3 +1,6 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { formatCZK } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -5,26 +8,40 @@ import { Badge } from '@/components/ui/badge'
 import { Building2, Users, CreditCard, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 
-export const revalidate = 60
+export default function DashboardPage() {
+  const [properties, setProperties] = useState<any[]>([])
+  const [tenants, setTenants] = useState<any[]>([])
+  const [payments, setPayments] = useState<any[]>([])
+  const [requests, setRequests] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
-export default async function DashboardPage() {
-  const [{ data: properties }, { data: tenants }, { data: payments }, { data: requests }] = await Promise.all([
-    (supabase as any).from('properties').select('*'),
-    (supabase as any).from('tenants').select('*').eq('active', true),
-    (supabase as any).from('rent_payments').select('*').eq('status', 'overdue'),
-    (supabase as any).from('maintenance_requests').select('*').neq('status', 'resolved'),
-  ])
+  useEffect(() => {
+    async function load() {
+      const [{ data: ps }, { data: ts }, { data: pays }, { data: rs }] = await Promise.all([
+        (supabase as any).from('properties').select('*'),
+        (supabase as any).from('tenants').select('*').eq('active', true),
+        (supabase as any).from('rent_payments').select('*').eq('status', 'overdue'),
+        (supabase as any).from('maintenance_requests').select('*').neq('status', 'resolved'),
+      ])
+      setProperties(ps || [])
+      setTenants(ts || [])
+      setPayments(pays || [])
+      setRequests(rs || [])
+      setLoading(false)
+    }
+    load()
+  }, [])
 
-  const occupied = (properties || []).filter((p: any) => p.status === 'occupied').length
-  const totalRent = (tenants || []).reduce((sum: number, t: any) => sum + (t.rent_amount || 0), 0)
-  const overdueCount = (payments || []).length
-  const openRequests = (requests || []).length
+  const occupied = properties.filter((p: any) => p.status === 'occupied').length
+  const totalRent = tenants.reduce((sum: number, t: any) => sum + (t.rent_amount || 0), 0)
+  const overdueCount = payments.length
+  const openRequests = requests.length
 
   const stats = [
-    { title: 'Nemovitosti', value: `${occupied} / ${(properties || []).length}`, sub: 'obsazených', icon: Building2, href: '/properties', color: 'text-blue-400' },
-    { title: 'Nájemníci', value: (tenants || []).length, sub: 'aktivní', icon: Users, href: '/tenants', color: 'text-green-400' },
-    { title: 'Měsíční nájem', value: formatCZK(totalRent), sub: 'celkem', icon: CreditCard, href: '/rent', color: 'text-purple-400' },
-    { title: 'Po splatnosti', value: overdueCount, sub: 'plateb', icon: AlertTriangle, href: '/rent', color: overdueCount > 0 ? 'text-red-400' : 'text-zinc-500' },
+    { title: 'Nemovitosti', value: loading ? '…' : `${occupied} / ${properties.length}`, sub: 'obsazených', icon: Building2, href: '/properties', color: 'text-blue-400' },
+    { title: 'Nájemníci', value: loading ? '…' : tenants.length, sub: 'aktivní', icon: Users, href: '/tenants', color: 'text-green-400' },
+    { title: 'Měsíční nájem', value: loading ? '…' : formatCZK(totalRent), sub: 'celkem', icon: CreditCard, href: '/rent', color: 'text-purple-400' },
+    { title: 'Po splatnosti', value: loading ? '…' : overdueCount, sub: 'plateb', icon: AlertTriangle, href: '/rent', color: overdueCount > 0 ? 'text-red-400' : 'text-zinc-500' },
   ]
 
   return (
